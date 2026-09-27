@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+/test-results/
+/playwright-report/
 
 # production
 /build
@@ -42,3 +44,8 @@ next-env.d.ts
 
 # temporary local scaffold
 prompting-buddha-app/
+*.tar.gz
+logs/
+.cursor/
+.kiro/
+.openai/

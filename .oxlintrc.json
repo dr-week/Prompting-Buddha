@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "react",
+    "unicorn"
+  ],
+  "categories": {
+    "correctness": "error",
+    "perf": "warn",
+    "suspicious": "warn"
+  },
+  "rules": {
+    "react/react-in-jsx-scope": "off",
+    "no-unused-vars": "warn",
+    "no-debugger": "error",
+    "no-constant-condition": "error",
+    "no-duplicate-case": "error",
+    "no-empty": "warn",
+    "no-extra-boolean-cast": "warn",
+    "typescript/no-explicit-any": "off",
+    "typescript/no-non-null-assertion": "warn",
+    "typescript/no-unnecessary-type-assertion": "warn",
+    "unicorn/no-useless-fallback-in-spread": "warn"
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".next/**",
+    "dist/**",
+    "src/legacy/**"
+  ]
+}

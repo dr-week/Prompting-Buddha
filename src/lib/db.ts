@@ -70,85 +70,89 @@ export async function initDatabase(): Promise<{ status: string; totalComposition
   `);
 
   // Seed Compositions if not present
-  for (const comp of CINE_COMPOSITIONS_DATABASE) {
-    await db.execute({
-      sql: `
-        INSERT INTO compositions (
-          id, name, category, category_label, filmmaker_tradition,
-          core_philosophy, framing, camera_angle, camera_movement,
-          lens_recommendation, spatial_blocking_guide, acting_procedure,
-          t0_baseline_rule, anti_complexity_constraint, default_audio_ambience, examples_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          name = excluded.name,
-          category = excluded.category,
-          category_label = excluded.category_label,
-          filmmaker_tradition = excluded.filmmaker_tradition,
-          core_philosophy = excluded.core_philosophy,
-          framing = excluded.framing,
-          camera_angle = excluded.camera_angle,
-          camera_movement = excluded.camera_movement,
-          lens_recommendation = excluded.lens_recommendation,
-          spatial_blocking_guide = excluded.spatial_blocking_guide,
-          acting_procedure = excluded.acting_procedure,
-          t0_baseline_rule = excluded.t0_baseline_rule,
-          anti_complexity_constraint = excluded.anti_complexity_constraint,
-          default_audio_ambience = excluded.default_audio_ambience,
-          examples_json = excluded.examples_json
-      `,
-      args: [
-        comp.id,
-        comp.name,
-        comp.category,
-        comp.categoryLabel,
-        comp.filmmakerTradition,
-        comp.corePhilosophy,
-        comp.framing,
-        comp.cameraAngle,
-        comp.cameraMovement,
-        comp.lensRecommendation,
-        comp.spatialBlockingGuide,
-        comp.actingProcedure,
-        comp.t0BaselineRule,
-        comp.antiComplexityConstraint,
-        comp.defaultAudioAmbience,
-        JSON.stringify(comp.examples || [])
-      ]
-    });
-  }
+  await Promise.all(
+    CINE_COMPOSITIONS_DATABASE.map((comp) =>
+      db.execute({
+        sql: `
+          INSERT INTO compositions (
+            id, name, category, category_label, filmmaker_tradition,
+            core_philosophy, framing, camera_angle, camera_movement,
+            lens_recommendation, spatial_blocking_guide, acting_procedure,
+            t0_baseline_rule, anti_complexity_constraint, default_audio_ambience, examples_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            category = excluded.category,
+            category_label = excluded.category_label,
+            filmmaker_tradition = excluded.filmmaker_tradition,
+            core_philosophy = excluded.core_philosophy,
+            framing = excluded.framing,
+            camera_angle = excluded.camera_angle,
+            camera_movement = excluded.camera_movement,
+            lens_recommendation = excluded.lens_recommendation,
+            spatial_blocking_guide = excluded.spatial_blocking_guide,
+            acting_procedure = excluded.acting_procedure,
+            t0_baseline_rule = excluded.t0_baseline_rule,
+            anti_complexity_constraint = excluded.anti_complexity_constraint,
+            default_audio_ambience = excluded.default_audio_ambience,
+            examples_json = excluded.examples_json
+        `,
+        args: [
+          comp.id,
+          comp.name,
+          comp.category,
+          comp.categoryLabel,
+          comp.filmmakerTradition,
+          comp.corePhilosophy,
+          comp.framing,
+          comp.cameraAngle,
+          comp.cameraMovement,
+          comp.lensRecommendation,
+          comp.spatialBlockingGuide,
+          comp.actingProcedure,
+          comp.t0BaselineRule,
+          comp.antiComplexityConstraint,
+          comp.defaultAudioAmbience,
+          JSON.stringify(comp.examples || []),
+        ],
+      })
+    )
+  );
 
   // Seed Presets into projects table
   const presetKeys = Object.keys(PRODUCTION_PRESETS);
-  for (const key of presetKeys) {
-    const p = PRODUCTION_PRESETS[key];
-    await db.execute({
-      sql: `
-        INSERT INTO projects (
-          id, title, scene_beat, aspect_ratio,
-          flow_reference_mode, raw_realism_mode, cast_json, panels_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          title = excluded.title,
-          scene_beat = excluded.scene_beat,
-          aspect_ratio = excluded.aspect_ratio,
-          flow_reference_mode = excluded.flow_reference_mode,
-          raw_realism_mode = excluded.raw_realism_mode,
-          cast_json = excluded.cast_json,
-          panels_json = excluded.panels_json,
-          updated_at = CURRENT_TIMESTAMP
-      `,
-      args: [
-        key,
-        p.projectTitle,
-        p.sceneBeat || "",
-        p.aspectRatio,
-        p.flowReferenceMode,
-        p.rawRealismMode ? 1 : 0,
-        JSON.stringify(p.cast || []),
-        JSON.stringify(p.panels || [])
-      ]
-    });
-  }
+  await Promise.all(
+    presetKeys.map((key) => {
+      const p = PRODUCTION_PRESETS[key];
+      return db.execute({
+        sql: `
+          INSERT INTO projects (
+            id, title, scene_beat, aspect_ratio,
+            flow_reference_mode, raw_realism_mode, cast_json, panels_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            scene_beat = excluded.scene_beat,
+            aspect_ratio = excluded.aspect_ratio,
+            flow_reference_mode = excluded.flow_reference_mode,
+            raw_realism_mode = excluded.raw_realism_mode,
+            cast_json = excluded.cast_json,
+            panels_json = excluded.panels_json,
+            updated_at = CURRENT_TIMESTAMP
+        `,
+        args: [
+          key,
+          p.projectTitle,
+          p.sceneBeat || "",
+          p.aspectRatio,
+          p.flowReferenceMode,
+          p.rawRealismMode ? 1 : 0,
+          JSON.stringify(p.cast || []),
+          JSON.stringify(p.panels || []),
+        ],
+      });
+    })
+  );
 
   const countRes = await db.execute("SELECT COUNT(*) as cnt FROM compositions;");
   const compCount = Number(countRes.rows[0]?.cnt || 0);

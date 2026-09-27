@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { socioeconomicGuidance } from "./compiler/socioeconomic";
+import { affordabilityProfile, AFFORDABILITY_ALLOCATION } from "./compiler/affordability";
+import { storyFormatGuidance } from "./compiler/story-format";
+import { applyPromptProfile, type PlatformSyntax } from "./compiler/prompt-profile";
 
 export const ShotFramingEnum = z.enum([
   "ECU", // Extreme Close Up
@@ -44,15 +48,40 @@ export interface CharacterConcept {
   id: string;
   name: string; // Proper human name (e.g. "Arjun", "Ramesh", "Sunita") - Critical for AI identity anchor
   role: "lead" | "supporting" | "counterpart";
+  socioeconomicStatus?: "poor" | "middle_class" | "rich";
+  culturalContext?: "india" | "western";
   rawInput: string;
   tag: string; // e.g. @CHAR_ARJUN
   archetypeTitle: string;
   ageGender: string;
+  hairStyle?: string;
+  hairColor?: string;
+  eyeColor?: string;
+  bodyType?: string;
   facialTopology: string;
   skinTexture: string;
   microKinesics: string; // Everyday habits, physical tics, weight, posture
   wardrobeFabric: string; // Lived-in, non-runway, realistic fabrics
   personalityVibe: string;
+  outfitType?: string;
+  clothingPalette?: string;
+  clothingCondition?: "old" | "new" | "damaged";
+  makeupStyle?: string;
+  groomingLevel?: "simple" | "regular" | "professional";
+  presentationLevel?: "weathered" | "everyday" | "polished";
+  personCondition?: string;
+  allureAesthetic?: string;
+  footwear?: string;
+  locks?: {
+    identity?: boolean;
+    body?: boolean;
+    hair?: boolean;
+    grooming?: boolean;
+    face?: boolean;
+    skin?: boolean;
+    wardrobe?: boolean;
+    footwear?: boolean;
+  };
 }
 
 export interface StoryboardPanel {
@@ -79,8 +108,10 @@ export interface ProductionContinuity {
   flowReferenceMode: "ingredients" | "frames";
   rawRealismMode: boolean; // Enforce pure Cinéma Vérité, zero CGI glow, anti-prop magnet
   sceneBeat: string;
+  storyFormat?: { mode: "slice_of_life" | "cinematic"; capture: "raw_vlog" | "cinematic"; continuity: "daily_series" | "standalone"; dialogue: "minimal" | "normal" };
   // Multi-character cast (1 to 3 characters max)
   cast: CharacterConcept[];
+  savedCharacters?: CharacterConcept[];
   // Legacy / convenience accessors
   primaryCharacter: {
     name?: string;
@@ -133,15 +164,30 @@ export const RANDOM_CHARACTER_IDEAS: string[] = [
   "Tariq, a 23-year-old freelance bike courier navigating torrential rain; reflective waterproof shell jacket, soaked eyelashes, sharp observant jawline, grip tape on glove cuffs."
 ];
 
-export const FIRST_NAMES_MALE = [
-  "Arjun", "Ramesh", "Kabir", "Vikram", "Mahesh", "Dev", "Tariq", "Marcus", "Mateo", "David", "Chen", "Karan", "Sanjay", "Farhan"
+export const FIRST_NAMES_INDIAN_MALE = [
+  "Kabir", "Arjun", "Rohan", "Dev", "Vikram", "Tariq", "Mahesh", "Ramesh", "Karan", "Sanjay", "Farhan", "Adil", "Sameer", "Nikhil"
 ];
 
-export const FIRST_NAMES_FEMALE = [
-  "Pooja", "Sunita", "Devi", "Meera", "Ananya", "Maya", "Priya", "Elena", "Fatima", "Lin", "Sarah", "Nina", "Kavita", "Ritu"
+export const FIRST_NAMES_INDIAN_FEMALE = [
+  "Maya", "Pooja", "Sunita", "Devi", "Meera", "Ananya", "Priya", "Kavita", "Ritu", "Zara", "Tara", "Rani", "Nisha", "Shalini"
 ];
 
-export function generateRealisticCharacterName(genderHint?: string, existingNames: string[] = []): string {
+export const FIRST_NAMES_GLOBAL_MALE = [
+  "Marcus", "Mateo", "Lucas", "David", "Kenji", "Chen", "Leo", "Zayn", "Felix", "Koa", "Dante", "Nikolai", "Julian", "Liam"
+];
+
+export const FIRST_NAMES_GLOBAL_FEMALE = [
+  "Elena", "Sofia", "Aria", "Lin", "Amara", "Nina", "Sarah", "Yuki", "Fatima", "Clara", "Zoe", "Eva", "Chloe", "Ingrid"
+];
+
+export const FIRST_NAMES_MALE = [...FIRST_NAMES_INDIAN_MALE, ...FIRST_NAMES_GLOBAL_MALE];
+export const FIRST_NAMES_FEMALE = [...FIRST_NAMES_INDIAN_FEMALE, ...FIRST_NAMES_GLOBAL_FEMALE];
+
+export function generateRealisticCharacterName(
+  genderHint?: string,
+  existingNames: string[] = [],
+  origin: "all" | "indian" | "non_indian" = "all"
+): string {
   const isFemale = genderHint && (
     genderHint.toLowerCase().includes("woman") ||
     genderHint.toLowerCase().includes("female") ||
@@ -150,10 +196,21 @@ export function generateRealisticCharacterName(genderHint?: string, existingName
     genderHint.toLowerCase().includes("sister") ||
     genderHint.toLowerCase().includes("nurse")
   );
-  const pool = isFemale ? FIRST_NAMES_FEMALE : FIRST_NAMES_MALE;
+
+  let pool: string[];
+  if (origin === "indian") {
+    pool = isFemale ? FIRST_NAMES_INDIAN_FEMALE : FIRST_NAMES_INDIAN_MALE;
+  } else if (origin === "non_indian") {
+    pool = isFemale ? FIRST_NAMES_GLOBAL_FEMALE : FIRST_NAMES_GLOBAL_MALE;
+  } else {
+    pool = isFemale ? FIRST_NAMES_FEMALE : FIRST_NAMES_MALE;
+  }
+
   const available = pool.filter((n) => !existingNames.includes(n));
   const list = available.length > 0 ? available : pool;
-  return list[Math.floor(Math.random() * list.length)];
+  const picked = list[Math.floor(Math.random() * list.length)];
+  // Strict mononym enforcement (never any surname attached)
+  return picked.split(" ")[0].trim();
 }
 
 export interface HumanArchetypePreset {
@@ -222,13 +279,61 @@ export interface ProceduralTraitOption {
   desc: string;
 }
 
+export const HAIR_STYLES_FEMALE: ProceduralTraitOption[] = [
+  { id: "shoulder_waves", label: "Loose Shoulder Waves", desc: "Natural soft dark waves resting on collarbones, tucked behind one ear with natural wisps." },
+  { id: "low_nape_bun", label: "Low Practical Bun", desc: "Lived-in low working bun pinned at the nape of the neck with soft stray tendrils framing temples." },
+  { id: "long_braid", label: "Long Natural Braid", desc: "Thick natural plait resting over one shoulder, held with a simple utilitarian band." },
+  { id: "textured_bob", label: "Textured Bob Cut", desc: "Chin-length textured blunt bob with natural volume and a casual side part." },
+  { id: "curly_afro_ringlets", label: "Natural Curls / Ringlets", desc: "Voluminous tight natural spiral curls framing cheeks and temples with healthy bounce." },
+  { id: "sleek_ponytail", label: "Practical Mid-Ponytail", desc: "Pulled back into a neat functional ponytail showing cheekbones, jawline, and natural neckline." },
+  { id: "soft_pixie", label: "Soft Feminine Pixie", desc: "Tapered soft pixie cut with feathered crown volume, exposing delicate ears and defined cheekbones." }
+];
+
+export const HAIR_STYLES_MALE: ProceduralTraitOption[] = [
+  { id: "textured_crop", label: "Short Textured Crop", desc: "Neat tapered sides with short finger-styled textured hair on top and clean natural hairline." },
+  { id: "unruly_waves", label: "Unruly Natural Waves", desc: "Messy medium-length natural waves falling casually over forehead with lived-in texture." },
+  { id: "classic_part", label: "Classic Side Taper", desc: "Timeless gentleman's side-tapered cut with neat natural neckline, combed back slightly." },
+  { id: "clean_buzzcut", label: "Clean Crew Cut / Fade", desc: "Military/industrial close-cropped clean fade, sharp natural hairline, disciplined neatness." },
+  { id: "tied_topknot", label: "Tied Man Bun / Knot", desc: "Coarse dark hair gathered and tied in a small practical topknot at the crown, sides neat." },
+  { id: "peppered_receding", label: "Mature Thinning & Peppered", desc: "Natural mature hairline with silver-peppered temples, trimmed neatly around ears." }
+];
+
+export const HAIR_COLORS: ProceduralTraitOption[] = [
+  { id: "jet_black", label: "Natural Jet Black", desc: "Deep rich obsidian black hair with subtle natural gloss." },
+  { id: "espresso_brown", label: "Espresso Dark Brown", desc: "Deep dark chocolate-brown hair with subtle warm undertones in sunlight." },
+  { id: "warm_chestnut", label: "Warm Chestnut Brown", desc: "Medium golden-chestnut brown hair with natural lighter highlights." },
+  { id: "salt_and_pepper", label: "Salt & Pepper Charcoal", desc: "Dark charcoal hair flecked with natural silver-white strands at temples." },
+  { id: "silver_grey", label: "Mature Silver Grey", desc: "Distinguished steel-silver grey hair with natural clean luster." },
+  { id: "honey_dark_blonde", label: "Honey / Dirty Dark Blonde", desc: "Natural muted dark blonde hair with subtle sun-bleached tones." }
+];
+
+export const EYE_COLORS: ProceduralTraitOption[] = [
+  { id: "obsidian_brown", label: "Deep Obsidian Brown", desc: "Deep almost-black brown irises with intense focal depth and clear sclera contrast." },
+  { id: "warm_amber", label: "Warm Amber / Honey Brown", desc: "Warm golden-amber brown irises catching amber light highlights." },
+  { id: "dark_hazel", label: "Dark Hazel / Flecked", desc: "Deep hazel-green irises with golden flecks around the pupil." },
+  { id: "espresso", label: "Rich Espresso Brown", desc: "Standard rich dark espresso brown eyes with warm human depth." },
+  { id: "cool_grey_brown", label: "Cool Slate / Grey-Brown", desc: "Muted cool dark slate-tinted brown irises with restrained calm presence." }
+];
+
+export const BODY_BUILDS_FEMALE: ProceduralTraitOption[] = [
+  { id: "lean_athletic_f", label: "Lean / Athletic", desc: "Toned athletic frame with defined shoulders, agile posture, grounded light footsteps." },
+  { id: "curvy_soft_f", label: "Curvy / Soft", desc: "Full natural curves with soft rounded shoulders, grounded relaxed center of gravity." },
+  { id: "slender_petite_f", label: "Slender / Petite", desc: "Slight delicate bone structure, slender neck and wrists, light quiet stride." },
+  { id: "heavy_sturdy_f", label: "Sturdy / Heavy", desc: "Strong broad bone structure, solid grounded presence, deliberate authoritative stance." },
+  { id: "toned_wiry_f", label: "Sinewy / Toned", desc: "Lean wiry frame with visible forearm muscle tone from physical work, upright alert posture." }
+];
+
+export const BODY_BUILDS_MALE: ProceduralTraitOption[] = [
+  { id: "lean_sinewy_m", label: "Lean / Sinewy", desc: "Lean wiry frame with tight tendon definition, hardened forearms, light on their feet with spring in their step." },
+  { id: "heavy_stocky_m", label: "Heavy / Stocky", desc: "Thick broad chest, solid heavy torso, short thick neck, planted stride bearing substantial physical weight." },
+  { id: "muscular_strong_m", label: "Hardened / Muscular", desc: "Dense muscular mass forged from heavy manual labor, broad calloused hands, thick neck muscles, grounded authority." },
+  { id: "slim_slight_m", label: "Slim / Slight", desc: "Slight frame, visible collarbones, narrow shoulders, agile and quick-moving." },
+  { id: "stooped_weathered_m", label: "Stooped / Weathered", desc: "Slightly hunched thoracic spine from decades of physical work, stiff lower back, cautious measured footing." }
+];
+
 export const BODY_BUILDS: ProceduralTraitOption[] = [
-  { id: "skinny_frail", label: "Skinny / Frail", desc: "Slight, hollow-cheeked frame, visible collarbones, delicate wrist joints, light footsteps with minimal physical mass." },
-  { id: "lean_athletic", label: "Lean / Sinewy", desc: "Lean wiry frame with tight tendon definition, hardened forearms, light on their feet with spring in their step." },
-  { id: "curvy_soft", label: "Curvy / Soft", desc: "Full-bodied natural curves with soft rounded shoulders, grounded natural center of gravity, deliberate relaxed gait." },
-  { id: "heavy_stocky", label: "Heavy / Stocky", desc: "Thick broad chest, solid heavy torso, short thick neck, planted stride bearing substantial physical weight." },
-  { id: "muscular_strong", label: "Hardened / Strong", desc: "Dense muscular mass forged from heavy manual labor, broad calloused hands, thick neck muscles, grounded authority." },
-  { id: "stooped_elderly", label: "Stooped / Weathered", desc: "Slightly hunched thoracic spine from decades of physical work, stiff lower back, cautious measured footing." }
+  ...BODY_BUILDS_MALE,
+  ...BODY_BUILDS_FEMALE
 ];
 
 export const SKIN_COMPLEXIONS: ProceduralTraitOption[] = [
@@ -236,14 +341,14 @@ export const SKIN_COMPLEXIONS: ProceduralTraitOption[] = [
   { id: "warm_brown", label: "Warm Brown / Wheatish", desc: "Warm golden-brown South Asian complexion, natural sun-darkened forearms and neck, authentic natural skin tones." },
   { id: "sunbaked_bronze", label: "Sun-baked Bronze", desc: "Deep copper bronze skin baked by years under the midday sun, leathery neck folds, natural tan gradients." },
   { id: "olive_matte", label: "Mediterranean / Olive", desc: "Matte olive undertone, neutral grey-green skin shadow falloff, natural resting facial hydration." },
-  { id: "pale_ashen", label: "Pale / Ashen / Tired", desc: "Fair, slightly fatigued porcelain or ashen skin tone, subtle blue vascular undertones beneath thin under-eye skin, indoor worker look." }
+  { id: "pale_ashen", label: "Pale / Ashen / Fair", desc: "Fair, slightly fatigued porcelain or ashen skin tone, subtle blue vascular undertones beneath thin under-eye skin, indoor worker look." }
 ];
 
 export const SKIN_TEXTURES: ProceduralTraitOption[] = [
-  { id: "pores_morning", label: "Visible Pores & Sleep Crease", desc: "Raw un-retouched epidermis with natural visible micro-pores, slight sleep impression marks on cheek, subtle morning puffiness. Zero airbrushing." },
-  { id: "weathered_wrinkles", label: "Sun-Weathered & Deep Lines", desc: "Pronounced crow's feet radiating from outer eyelids, deep furrowed brow lines, leathery texture on neck and knuckles, authentic sun freckles." },
-  { id: "sweat_grease", label: "Industrial Sweat & Grease", desc: "Fine natural moisture beads along the hairline, subtle oily sheen on nose bridge and forehead, faint soot or machine-grease smudge across cheek." },
-  { id: "rough_stubble", label: "Coarse Stubble & Chapped", desc: "Uneven 3-day silver/black facial stubble, slightly chapped dry lower lip, rough matte skin texture without cosmetic glow." }
+  { id: "pores_morning", label: "Visible Pores & Natural Pores", desc: "Raw un-retouched epidermis with natural visible micro-pores, slight sleep impression marks on cheek, subtle morning puffiness. Zero airbrushing." },
+  { id: "weathered_wrinkles", label: "Sun-Weathered & Fine Lines", desc: "Pronounced crow's feet radiating from outer eyelids, natural brow lines, leathery texture on neck, authentic sun freckles." },
+  { id: "sweat_grease", label: "Industrial Sheen & Sweat Beads", desc: "Fine natural moisture beads along the hairline, subtle natural sheen on nose bridge and forehead, faint soot or dust smudge." },
+  { id: "natural_matte", label: "Natural Clean Matte", desc: "Clean un-retouched matte skin, visible follicle texture, realistic epidermal variation without cosmetic foundation." }
 ];
 
 export const CLOTHING_PALETTES: ProceduralTraitOption[] = [
@@ -252,7 +357,32 @@ export const CLOTHING_PALETTES: ProceduralTraitOption[] = [
   { id: "washed_indigo", label: "Washed Indigo & Denim", desc: "Deep workwear indigo twill, faded at elbows and collar, subtle dye striations and worn white warp threads." },
   { id: "sunbleached_khaki", label: "Sun-bleached Khaki", desc: "Worn beige-khaki canvas drill fabric with sweat-stained collar band and utilitarian brass buttons." },
   { id: "olive_drab", label: "Faded Olive Drab", desc: "Muted army-green cotton duck fabric, weathered at pocket seams, muted desaturated olive tone." },
-  { id: "offwhite_linen", label: "Soiled Off-white Linen", desc: "Natural unbleached raw linen fabric in bone-cream, visible natural slub weave, faint grime smudges along the cuffs." }
+  { id: "offwhite_linen", label: "Natural Off-white Linen", desc: "Natural unbleached raw linen fabric in bone-cream, visible natural slub weave, faint wear along cuffs." }
+];
+
+export const OCULAR_EYE_OPTIONS: ProceduralTraitOption[] = [
+  { id: "watchful_deepset", label: "Watchful Deep-Set", desc: "Deep-set eyes with heavy lower lids, tired observant gaze, and subtle authentic crow's feet." },
+  { id: "hooded_intense", label: "Hooded Almond Gaze", desc: "Narrow hooded almond eyes with razor-sharp focal concentration and unblinking stillness." },
+  { id: "sun_squinted", label: "Sun-Squinted Weathered", desc: "Narrowed sun-squinted eyes with fine radiating crow's feet from years working in harsh open daylight." },
+  { id: "wide_observant", label: "Wide Observant Iris", desc: "Wide irises with sharp contrast against clear sclera, quiet assessing gaze." },
+  { id: "fatigued_bloodshot", label: "Fatigued Night-Shift", desc: "Tired eyes with subtle vascularity, faint dark circles under thin lower lids, restrained internal exhaustion." }
+];
+
+export const FACIAL_STRUCTURE_OPTIONS: ProceduralTraitOption[] = [
+  { id: "sharp_angular", label: "Sharp Angular Jaw", desc: "High prominent cheekbones, sharp cutting jawline, defined cheek hollows, natural facial symmetry." },
+  { id: "weathered_square", label: "Square Mandibular Chin", desc: "Solid square mandibular frame, defined jaw angles, straight strong nose bridge." },
+  { id: "soft_oval", label: "Soft Oval Symmetry", desc: "Naturally rounded cheeks, soft tapered chin, delicate natural nasal curvature." },
+  { id: "hollow_temples", label: "Hollow Temples & Brow", desc: "Lean gaunt temples, pronounced brow ridge casting soft natural shadows over the eye sockets." },
+  { id: "compact_grounded", label: "Compact Grounded Face", desc: "Short sturdy neck connection, broad cheek planes, grounded facial contours." }
+];
+
+export const ACTING_POSES_OPTIONS: ProceduralTraitOption[] = [
+  { id: "grounded_stance", label: "Grounded Resting Stance", desc: "Stands with feet planted shoulder-width apart, hands jammed deep in jacket pockets, slight deliberate head tilt." },
+  { id: "alert_coiled", label: "Alert Coiled Fighter", desc: "Tense coiled shoulder line, watchful eyes scanning room corners, hands held relaxed at waist level ready to react." },
+  { id: "weary_slump", label: "Exhausted Work Slump", desc: "Seated with elbows planted on knees, head bowed slightly, slow deep breathing, bearing substantial physical fatigue." },
+  { id: "economic_stillness", label: "Economic Stillness", desc: "Absolute economy of physical motion: zero extraneous twitches or nervous gestures, measured steady focus." },
+  { id: "mechanic_workman", label: "Workman Practical Lean", desc: "Sleeves rolled past forearms, leaning weight onto one hip, habitually wiping hands against work trousers." },
+  { id: "nervous_vigilance", label: "Guarded Vigilance", desc: "Shifts weight between heels, restless scanning gaze, right hand unconsciously checking pocket seams." }
 ];
 
 export const EVERYDAY_HABITS_KINESICS: string[] = [
@@ -271,79 +401,152 @@ export function generateProceduralCharacter(options?: {
   complexionId?: string;
   textureId?: string;
   paletteId?: string;
+  eyeId?: string;
+  eyeColorId?: string;
+  faceId?: string;
+  poseId?: string;
+  hairStyleId?: string;
+  hairColorId?: string;
+  age?: number;
+  origin?: "all" | "indian" | "non_indian";
 }): CharacterConcept {
   const role = options?.role || "lead";
   const gender = options?.gender || (Math.random() > 0.5 ? "female" : "male");
-  const name = generateRealisticCharacterName(gender, options?.existingNames || []);
+  const name = generateRealisticCharacterName(gender, options?.existingNames || [], options?.origin || "all");
   
-  const build = BODY_BUILDS.find((b) => b.id === options?.buildId) || BODY_BUILDS[Math.floor(Math.random() * BODY_BUILDS.length)];
+  const builds = gender === "female" ? BODY_BUILDS_FEMALE : BODY_BUILDS_MALE;
+  const build = builds.find((b) => b.id === options?.buildId) || builds[Math.floor(Math.random() * builds.length)];
   const complexion = SKIN_COMPLEXIONS.find((c) => c.id === options?.complexionId) || SKIN_COMPLEXIONS[Math.floor(Math.random() * SKIN_COMPLEXIONS.length)];
   const texture = SKIN_TEXTURES.find((t) => t.id === options?.textureId) || SKIN_TEXTURES[Math.floor(Math.random() * SKIN_TEXTURES.length)];
   const palette = CLOTHING_PALETTES.find((p) => p.id === options?.paletteId) || CLOTHING_PALETTES[Math.floor(Math.random() * CLOTHING_PALETTES.length)];
-  const habit = EVERYDAY_HABITS_KINESICS[Math.floor(Math.random() * EVERYDAY_HABITS_KINESICS.length)];
+  const eye = OCULAR_EYE_OPTIONS.find((e) => e.id === options?.eyeId) || OCULAR_EYE_OPTIONS[Math.floor(Math.random() * OCULAR_EYE_OPTIONS.length)];
+  const eyeColor = EYE_COLORS.find((e) => e.id === options?.eyeColorId) || EYE_COLORS[Math.floor(Math.random() * EYE_COLORS.length)];
+  const face = FACIAL_STRUCTURE_OPTIONS.find((f) => f.id === options?.faceId) || FACIAL_STRUCTURE_OPTIONS[Math.floor(Math.random() * FACIAL_STRUCTURE_OPTIONS.length)];
+  const hairStyles = gender === "female" ? HAIR_STYLES_FEMALE : HAIR_STYLES_MALE;
+  const hairStyle = hairStyles.find((h) => h.id === options?.hairStyleId) || hairStyles[Math.floor(Math.random() * hairStyles.length)];
+  const hairColor = HAIR_COLORS.find((h) => h.id === options?.hairColorId) || HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)];
+  const pose = ACTING_POSES_OPTIONS.find((p) => p.id === options?.poseId) || ACTING_POSES_OPTIONS[Math.floor(Math.random() * ACTING_POSES_OPTIONS.length)];
 
-  const randomAge = Math.floor(Math.random() * 45) + 19; // 19 to 64
-  const ageGender = `${randomAge}-year-old ${gender === "female" ? "woman" : "man"}, ${build.label.toLowerCase()}`;
+  const randomAge = options?.age || Math.floor(Math.random() * 45) + 19; // 19 to 64
+  const ageGender = `${randomAge}-year-old ${gender === "female" ? "woman" : "man"}, ${build.label.toLowerCase()} build`;
   const tag = `@CHAR_${name.toUpperCase().replace(/[^A-Z0-9]/g, "")}`;
-  const rawInput = `${name}, a ${ageGender} with ${complexion.label.toLowerCase()} skin and ${palette.label.toLowerCase()} lived-in clothing. ${habit}`;
+  const rawInput = `${name}, a ${ageGender} with ${complexion.label.toLowerCase()} skin and ${palette.label.toLowerCase()} lived-in clothing. ${pose.desc}`;
 
   return {
     id: `char_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     name,
     role,
+    socioeconomicStatus: "middle_class",
     rawInput,
     tag,
     archetypeTitle: `${name} — ${build.label} (${complexion.label})`,
     ageGender,
-    facialTopology: `Authentic facial structure for ${name}: ${complexion.desc} Distinct bone structure with natural asymmetry.`,
-    skinTexture: `${texture.desc} Complexion: ${complexion.label}. Zero plastic smoothing.`,
-    microKinesics: `${build.desc} Everyday habit: ${habit}`,
-    wardrobeFabric: `${palette.desc} Utilitarian everyday tailoring with natural creases and authentic seam wear.`,
+    hairStyle: hairStyle.label,
+    hairColor: hairColor.label,
+    eyeColor: eyeColor.label,
+    bodyType: build.label,
+    facialTopology: `${face.desc} Hair: ${hairColor.label} ${hairStyle.desc} Eyes: ${eyeColor.label}, ${eye.desc}`,
+    skinTexture: `${complexion.label} complexion. ${texture.desc} Natural visible micro-pores, zero digital airbrushing.`,
+    microKinesics: `${build.desc} Stance: ${pose.desc}`,
+    wardrobeFabric: `${palette.desc} Everyday utilitarian garments with authentic seam creases and natural fabric wear.`,
     personalityVibe: "Restrained, watchful resting expression; quiet grounded internal life."
   };
 }
 
 /**
- * Parses any raw free-form producer character concept into a structured cinematic prompt
+ * Compiles character reference sheet prompt into a clean photographic prompt
+ * (Eliminates ASCII headers and metadata tags that confuse image models)
  */
-export function compileCharacterSheetPrompt(concept: CharacterConcept): string {
-  return `[FILMMAKER CHARACTER DIAGNOSTIC REFERENCE SHEET]
-CHARACTER NAME: ${concept.name.toUpperCase()} (Identity Anchor Token)
-ASSET TAG: ${concept.tag}
-ROLE: ${concept.role.toUpperCase()}
-ARCHETYPE: ${concept.archetypeTitle}
-INTENDED USE: Master Visual Reference / Flow Ingredient / Character Turnaround Model Sheet
+function sanitizePromptSnippet(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/Zero plastic CGI smoothing,?\s*zero artificial airbrushing\.?/gi, "")
+    .replace(/Zero beauty smoothing\.?/gi, "")
+    .replace(/Realistic human skin with visible micro-pores and authentic natural skin tone\.?/gi, "")
+    .replace(/Everyday utilitarian tailoring\.?/gi, "")
+    .replace(/Meticulously styled with authentic fabric weave,?\s*natural textile draping,?\s*and realistic seam construction\.?/gi, "")
+    .replace(/Natural visible micro-pores,?\s*zero digital airbrushing\.?/gi, "")
+    .replace(/\.\.\s*\)\.?/g, ". ")
+    .replace(/\.\.+/g, ".")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-═══════════════════════════════════════════════════════════
-IDENTITY & BIOMETRIC CONTINUITY ANCHORS (DO NOT ALTER)
-═══════════════════════════════════════════════════════════
-• Character Name: ${concept.name}
-• Age & Demographic: ${concept.ageGender}
-• Bone Structure & Facial Topology: ${concept.facialTopology}
-• Skin Texture & Authenticity: ${concept.skinTexture}
-• Zero-Beauty Filter: Natural visible skin pores, authentic skin unevenness, subtle imperfections, zero plastic airbrushing, zero digital smoothing.
+/**
+ * Compiles character reference sheet prompt into a clean, precise, zero-fluff prompt
+ * Designed for optimal distinctiveness, consistency, and prompt fidelity in modern image models
+ */
+export function compileCharacterSheetPrompt(concept: CharacterConcept, settings: CompilerSettings = DEFAULT_COMPILER_SETTINGS): string {
+  const charName = concept.name ? concept.name.toUpperCase() : "CHARACTER";
+  const charTag = concept.tag || `@CHAR_${charName}`;
 
-═══════════════════════════════════════════════════════════
-EVERYDAY KINESICS & POSTURE HABITS
-═══════════════════════════════════════════════════════════
-• Physical Posture & Build: ${concept.microKinesics}
-• Facial Baseline Expression: ${concept.personalityVibe}
+  // Clean age & gender
+  let cleanAgeGender = concept.ageGender || "adult";
+  cleanAgeGender = cleanAgeGender.replace(/\s*\([^)]*\)/g, "").replace(/\s*,\s*build/gi, "").trim();
 
-═══════════════════════════════════════════════════════════
-LIVED-IN WARDROBE LOCK (DAY-TO-DAY REALISM)
-═══════════════════════════════════════════════════════════
-• Garments: ${concept.wardrobeFabric}
-• Wardrobe Rule: Everyday functional clothing with realistic seams, natural fabric creases, and authentic wear. No fashion runway styling.
+  // Extract clean face structure without contaminated repeated strings
+  let cleanFace = sanitizePromptSnippet(concept.facialTopology || "");
+  // If face topology has old contaminated string repetitions, extract the base
+  if (cleanFace.includes("Eyes:") || cleanFace.includes("Hair:")) {
+    const basePart = cleanFace.split(/Eyes:|Hair:|Iris:/i)[0].trim().replace(/[.,]$/, "");
+    const eyePart = concept.eyeColor ? `${concept.eyeColor} eyes` : "";
+    const hairPart = concept.hairStyle ? `${concept.hairColor || "Dark"} ${concept.hairStyle}` : "";
+    cleanFace = [basePart, eyePart, hairPart].filter(Boolean).join(", ");
+  }
 
-═══════════════════════════════════════════════════════════
-DIAGNOSTIC TURNAROUND RENDER DIRECTIVE
-═══════════════════════════════════════════════════════════
-Three-view character model sheet of ${concept.name} on a clean neutral grey cinematic background:
-1. FRONT PORTRAIT (Eye-level, neutral resting facial expression, shoulders relaxed).
-2. THREE-QUARTER VIEW (Showing hairline, jawline depth, and shoulder width).
-3. PROFILE SHOT (Showing nasal bridge, ear placement, and spinal posture).
+  // Clean skin
+  const cleanSkin = sanitizePromptSnippet(concept.skinTexture || "Natural skin tone with authentic texture")
+    .replace(/\.+$/, "");
 
-OPTICAL SPECIFICATIONS: Shot on 35mm Prime Lens (50mm T2.0). Even, diffuse natural daylight. Zero colored rim lights, zero neon glow, zero volumetric fog. Pure photographic realism.`;
+  // Clean posture & demeanor
+  const demeanorParts = [
+    concept.personalityVibe ? sanitizePromptSnippet(concept.personalityVibe).replace(/\.+$/, "") : null,
+    concept.personCondition ? `Condition: ${sanitizePromptSnippet(concept.personCondition).replace(/\.+$/, "")}` : null,
+  ].filter(Boolean);
+  const cleanDemeanor = demeanorParts.length > 0 ? demeanorParts.join(". ") : "Confident calm presence";
+
+  // Clean wardrobe
+  const cleanWardrobe = sanitizePromptSnippet(concept.wardrobeFabric || "Fitted modern attire with natural textile drape")
+    .replace(/\.+$/, "");
+
+  // Clean grooming
+  const cleanGrooming = concept.makeupStyle
+    ? sanitizePromptSnippet(concept.makeupStyle).replace(/\.+$/, "")
+    : "Clean natural grooming";
+  const socioeconomic = socioeconomicGuidance(concept.socioeconomicStatus);
+  const affordability = affordabilityProfile(concept);
+
+  const contentDirective = settings.nsfwMode
+    ? "CONTENT MODE: Mature dramatic filmmaking enabled. Preserve adult sensuality, intimacy, vulnerability, body realism, and character-specific styling when explicitly authored. Do not sanitize authored adult themes; maintain legal, consensual, adult-only framing."
+    : "CONTENT MODE: Commercial-safe mode. Preserve character identity and authored dramatic intent while avoiding explicit sexual content and gratuitous nudity.";
+
+  const prompt = `3-view character turnaround reference sheet of ${charName} (${charTag})
+
+${contentDirective}
+
+CHARACTER IDENTITY & PHYSIQUE:
+- Subject: ${concept.name}, ${cleanAgeGender}${concept.bodyType ? `, ${concept.bodyType} silhouette` : ""}.
+- Facial Features: ${cleanFace.replace(/\.+$/, "")}.
+- Hair & Eyes: ${concept.hairColor || "Dark"} ${concept.hairStyle || "styled hair"}, ${concept.eyeColor || "brown"} eyes.
+- Skin & Tone: ${cleanSkin}.
+- Socioeconomic Context: ${socioeconomic.label}.
+- Material & Styling Direction: ${socioeconomic.directive}
+- Affordability Budget: ${affordability.points}/100 points (${affordability.tier}).
+- Budget Rule: ${affordability.allowance}
+- Section Allocation: Identity ${AFFORDABILITY_ALLOCATION.identity}, Body ${AFFORDABILITY_ALLOCATION.body}, Hair ${AFFORDABILITY_ALLOCATION.hair}, Grooming ${AFFORDABILITY_ALLOCATION.grooming}, Face ${AFFORDABILITY_ALLOCATION.face}, Skin ${AFFORDABILITY_ALLOCATION.skin}, Wardrobe ${AFFORDABILITY_ALLOCATION.wardrobe}.
+- Demeanor: ${cleanDemeanor}.
+- Overall Presentation: ${concept.presentationLevel || "everyday"}.
+- Grooming Level: ${concept.groomingLevel || "regular"}.
+- Grooming: ${cleanGrooming}.
+
+WARDROBE & STYLING:
+- Outfit & Footwear: ${cleanWardrobe}${concept.footwear ? `. Footwear: ${concept.footwear}` : ""}.
+- Clothing Condition: ${concept.clothingCondition || "old"}.
+
+TURNAROUND COMPOSITION:
+3-view studio character turnaround (front portrait, 45-degree angle, full side profile), seamless neutral grey studio backdrop, crisp 35mm portrait lighting, 8k photographic sharpness.`;
+  return applyPromptProfile(prompt, "character", settings.platformSyntax, settings.compactMode);
 }
 
 /**
@@ -1805,7 +2008,7 @@ export interface CompilerSettings {
   nsfwMode: boolean; // false = PG-13 commercial safety compliance; true = Raw uncensored gritty R-rated indie
   negativeGuardrails: boolean; // Auto-inject anti-CGI, anti-plastic, anti-glow negative tokens
   compactMode?: boolean;
-  platformSyntax?: "google_flow" | "runway_gen4" | "kling" | "midjourney";
+  platformSyntax?: PlatformSyntax;
 }
 
 export const DEFAULT_COMPILER_SETTINGS: CompilerSettings = {
@@ -1902,56 +2105,39 @@ export function compileStoryboardPrompt(
   - ANTI-PROP-MAGNET CONSTRAINT: DO NOT illuminate, spotlight, add artificial rim-glow, or center background furniture/props. Background props exist strictly as unobtrusive environmental texture.
   - ZERO CGI ARTIFACTS: Zero digital gloss, zero airbrushing, zero plastic skin smoothing, zero fake volumetric glow. Authentic human skin with natural pores, subtle morning puffiness, and lifelike physical weight.`
     : "";
+  const storyFormat = storyFormatGuidance(data.storyFormat);
 
-  return `[FILMMAKER STORYBOARD PRODUCTION DIRECTIVE]
-TARGET FORMAT: ${data.panels.length}-Panel Sequential Master Storyboard
-ASPECT RATIO: ${data.aspectRatio}
-SCENE LOGLINE: ${data.sceneBeat}
+  const prompt = `[FILMMAKER STORYBOARD DIRECTIVE]
+${data.panels.length}-Panel | ${data.aspectRatio} | ${data.sceneBeat}
 
-═══════════════════════════════════════════════════════════
-CONTINUITY CAST ROSTER (MAX 3 NAMED CHARACTERS — DO NOT ALTER)
-═══════════════════════════════════════════════════════════
+── CAST ────────────────────────────────────────────────────
 ${castRosterText}
+• Lock exact facial topology, hairstyle, skin tone, and wardrobe for ${castList.map((c) => c.name).join(", ")} across all panels. No identity swapping.
 
-• CAST CONTINUITY CONTRACT:
-  - Maintain exact facial topology, bone structure, hairstyle, skin tone and body proportions for ${castList.map((c) => c.name).join(", ")} across ALL panels.
-  - Zero character identity swapping: do not cross-pollinate clothing or facial features between characters.
-
-═══════════════════════════════════════════════════════════
-ASPECT RATIO & SPATIAL GEOMETRY
-═══════════════════════════════════════════════════════════
+── WORLD ───────────────────────────────────────────────────
 ${aspectDirective}
+Location: ${data.locationLock.geography} (${data.locationLock.tag})
+Lighting: ${data.locationLock.lightingKeys} | Palette: ${data.locationLock.colorPalette}
+Lens: ${data.opticsAndAesthetics.lensFamily} | Look: ${data.opticsAndAesthetics.grading}
+Rule: Fixed spatial axes and 180° line throughout.${realismDirectives}
 
-• ENVIRONMENT & LIGHTING:
-  - Environment Asset: ${data.locationLock.tag}
-  - Spatial Geography: ${data.locationLock.geography}
-  - Lighting Setup: ${data.locationLock.lightingKeys}
-  - Color Palette: ${data.locationLock.colorPalette}
-  - RULE: Fixed spatial axes and 180° line. No arbitrary repositioning of doors, windows, or light sources.${realismDirectives}
+── EPISODE ─────────────────────────────────────────────────
+${storyFormat.directive}
 
-• OPTICS & CINEMATOGRAPHY:
-  - Lens Package: ${data.opticsAndAesthetics.lensFamily}
-  - Emulsion / Look: ${data.opticsAndAesthetics.grading}
-
-═══════════════════════════════════════════════════════════
-PANEL BREAKDOWN (INDIVIDUAL SHOT COMPOSITIONS)
-═══════════════════════════════════════════════════════════
+── SCENES ──────────────────────────────────────────────────
 ${panelTexts}
 
-═══════════════════════════════════════════════════════════
-STRICT AI PRODUCTION CONSTRAINTS
-═══════════════════════════════════════════════════════════
-1. Maintain exact character likeness and wardrobe consistency for each named character between panels 1 through ${data.panels.length}.
-2. Zero mid-scene clothing shifts. No costume fusion.
-3. Physical Action Integrity: Each panel depicts an explicit, frozen posture. Do not contradict spatial physics across panels.
-4. Keep the environmental light direction and room layout identical across all angles.
-5. Clean photographic frames: NO borders, watermarks, text labels, camera icons, or comic speech bubbles.
-6. Render each panel as a distinct full-resolution photographic cinematic plate.
-${settings.nsfwMode ? `• CONTENT RATING: [RAW UNCENSORED INDIE / R-RATED]. Visceral physical authenticity: authentic workshop blood scratches, grease burns, gritty street neorealism permitted.` : `• CONTENT RATING: [PG-13 COMMERCIAL SAFE — Google Flow, Runway, Kling & Midjourney Compliant]. Zero explicit gore, zero gratuitous nudity, zero adult content. Passed for commercial enterprise production.`}${settings.negativeGuardrails ? `\n\n═══════════════════════════════════════════════════════════
-NEGATIVE PROMPT & ANTI-HALLUCINATION GUARDRAILS
-═══════════════════════════════════════════════════════════
-deformed hands, extra fingers, mutated limbs, plastic skin, CGI glow, Pixar 3D render, cartoon, anime, airbrushed skin, oversaturated neon, levitating objects, floating wires, washbasin inside electrical wire pile, split frames, distorted anatomy, camera icons.` : ""}`;
+── CONSTRAINTS ─────────────────────────────────────────────
+1. Exact wardrobe and character likeness locked panels 1–${data.panels.length}.
+2. No mid-scene clothing changes or costume fusion.
+3. Physical action integrity: frozen postures must not contradict spatial physics.
+4. Environmental light direction and room layout identical across all angles.
+5. Clean photographic frame: no borders, watermarks, text labels, or speech bubbles.
+6. Each panel is a distinct full-resolution cinematic plate.
+${settings.nsfwMode ? `Rating: [R-RATED / RAW INDIE]. Visceral physical authenticity permitted.` : `Rating: [PG-13 COMMERCIAL SAFE]. No explicit gore, nudity, or adult content.`}${settings.negativeGuardrails ? `\n\n── NEGATIVE PROMPT ─────────────────────────────────────────\ndeformed hands, extra fingers, mutated limbs, plastic skin, CGI glow, Pixar 3D render, cartoon, anime, airbrushed skin, oversaturated neon, levitating objects, floating wires, split frames, distorted anatomy, camera icons.` : ""}`;
+  return applyPromptProfile(prompt, "storyboard", settings.platformSyntax, settings.compactMode);
 }
+
 
 /**
  * Converts Storyboard Panels into 1-Shot Image-to-Video Prompts with Physical Plausibility Rules
@@ -2077,7 +2263,7 @@ ${dialogueSection}
 End on a stable, unblurred final frame composition suitable for smooth editorial transition.`;
   });
 
-  return shotPrompts.join("\n\n" + "═".repeat(58) + "\n\n");
+  return applyPromptProfile(shotPrompts.join("\n\n" + "═".repeat(58) + "\n\n"), "video", settings.platformSyntax, settings.compactMode);
 }
 
 /**
