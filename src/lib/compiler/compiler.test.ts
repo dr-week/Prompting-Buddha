@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PRODUCTION_PRESETS } from "../filmmaker-compiler";
-import { compileCharacterSheetPrompt } from "./character";
+import { compileCharacterSheetPrompt, compileOutfitPosePrompt } from "./character";
 import { compileStoryboardPrompt } from "./storyboard";
 import { auditPromptContinuity } from "./auditor";
 import { storyFormatGuidance, buildCaptureDirective } from "./story-format";
@@ -14,6 +14,15 @@ describe("deterministic prompt compiler", () => {
     const prompt = compileCharacterSheetPrompt(project.cast[0]);
     expect(prompt).toContain(project.cast[0].name.toUpperCase());
     expect(prompt).toContain(project.cast[0].tag);
+  });
+
+  it("compiles an optimal, concise outfit and pose reference prompt", () => {
+    const outfitPosePrompt = compileOutfitPosePrompt(project.cast[0]);
+    expect(outfitPosePrompt).toContain(project.cast[0].name.toUpperCase());
+    expect(outfitPosePrompt).toContain(project.cast[0].tag);
+    expect(outfitPosePrompt).toContain("OUTFIT & WARDROBE SPECIFICATION:");
+    expect(outfitPosePrompt).toContain("POSE & PHYSICAL STANCE:");
+    expect(outfitPosePrompt.length).toBeLessThan(1200);
   });
 
   it("keeps storyboard panel order", () => {

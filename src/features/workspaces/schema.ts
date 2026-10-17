@@ -51,7 +51,7 @@ const workspaceDocumentSchema = z.object({
   activeStoryboardId: z.string().min(1),
   storyboards: z.array(z.object({ id: z.string().min(1), title: z.string(), project: projectSchema, storyMap: storyMapSchema })).min(1),
   settings: settingsSchema,
-  activeStep: z.enum(["storymap", "character", "storyboard", "video", "auditor"]),
+  activeStep: z.enum(["storymap", "character", "outfit-pose", "storyboard", "video", "auditor"]),
   updatedAt: z.string(),
 });
 

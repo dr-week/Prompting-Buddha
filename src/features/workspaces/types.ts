@@ -3,7 +3,7 @@ import type { PropAsset } from "@/features/props/types";
 
 export const CURRENT_WORKSPACE_SCHEMA_VERSION = 3 as const;
 
-export type WorkflowStep = "storymap" | "character" | "storyboard" | "video" | "auditor";
+export type WorkflowStep = "storymap" | "character" | "outfit-pose" | "storyboard" | "video" | "auditor";
 
 export type StoryMapNodeKind = "story" | "character" | "environment" | "time" | "props" | "narration" | "dialogue" | "beat";
 

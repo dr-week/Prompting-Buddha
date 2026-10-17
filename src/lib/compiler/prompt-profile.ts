@@ -1,4 +1,4 @@
-export type PromptStage = "character" | "storyboard" | "video";
+export type PromptStage = "character" | "outfit-pose" | "storyboard" | "video";
 export type PlatformSyntax = "google_flow" | "veo" | "kling" | "runway_gen4" | "generic";
 
 export function applyPromptProfile(prompt: string, stage: PromptStage, platform: PlatformSyntax = "google_flow", compact = false) {

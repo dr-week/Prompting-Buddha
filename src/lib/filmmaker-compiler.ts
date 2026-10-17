@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { socioeconomicGuidance } from "./compiler/socioeconomic";
-import { affordabilityProfile, AFFORDABILITY_ALLOCATION } from "./compiler/affordability";
 import { storyFormatGuidance } from "./compiler/story-format";
 import { applyPromptProfile, type PlatformSyntax } from "./compiler/prompt-profile";
 
@@ -81,6 +80,7 @@ export interface CharacterConcept {
     skin?: boolean;
     wardrobe?: boolean;
     footwear?: boolean;
+    pose?: boolean;
   };
 }
 
@@ -515,7 +515,6 @@ export function compileCharacterSheetPrompt(concept: CharacterConcept, settings:
     ? sanitizePromptSnippet(concept.makeupStyle).replace(/\.+$/, "")
     : "Clean natural grooming";
   const socioeconomic = socioeconomicGuidance(concept.socioeconomicStatus);
-  const affordability = affordabilityProfile(concept);
 
   const contentDirective = settings.nsfwMode
     ? "CONTENT MODE: Mature dramatic filmmaking enabled. Preserve adult sensuality, intimacy, vulnerability, body realism, and character-specific styling when explicitly authored. Do not sanitize authored adult themes; maintain legal, consensual, adult-only framing."
@@ -532,9 +531,6 @@ CHARACTER IDENTITY & PHYSIQUE:
 - Skin & Tone: ${cleanSkin}.
 - Socioeconomic Context: ${socioeconomic.label}.
 - Material & Styling Direction: ${socioeconomic.directive}
-- Affordability Budget: ${affordability.points}/100 points (${affordability.tier}).
-- Budget Rule: ${affordability.allowance}
-- Section Allocation: Identity ${AFFORDABILITY_ALLOCATION.identity}, Body ${AFFORDABILITY_ALLOCATION.body}, Hair ${AFFORDABILITY_ALLOCATION.hair}, Grooming ${AFFORDABILITY_ALLOCATION.grooming}, Face ${AFFORDABILITY_ALLOCATION.face}, Skin ${AFFORDABILITY_ALLOCATION.skin}, Wardrobe ${AFFORDABILITY_ALLOCATION.wardrobe}.
 - Demeanor: ${cleanDemeanor}.
 - Overall Presentation: ${concept.presentationLevel || "everyday"}.
 - Grooming Level: ${concept.groomingLevel || "regular"}.
@@ -547,6 +543,42 @@ WARDROBE & STYLING:
 TURNAROUND COMPOSITION:
 3-view studio character turnaround (front portrait, 45-degree angle, full side profile), seamless neutral grey studio backdrop, crisp 35mm portrait lighting, 8k photographic sharpness.`;
   return applyPromptProfile(prompt, "character", settings.platformSyntax, settings.compactMode);
+}
+
+/**
+ * Compiles a precise, optimal Outfit & Pose reference prompt
+ * Focuses on garments, fabric textures, posture, and spatial stance
+ */
+export function compileOutfitPosePrompt(concept: CharacterConcept, settings: CompilerSettings = DEFAULT_COMPILER_SETTINGS): string {
+  const charName = concept.name ? concept.name.toUpperCase() : "CHARACTER";
+  const charTag = concept.tag || `@CHAR_${charName}`;
+
+  const cleanWardrobe = sanitizePromptSnippet(concept.wardrobeFabric || "Fitted modern attire with natural textile drape")
+    .replace(/\.+$/, "");
+  const footwearText = concept.footwear ? `, footwear: ${concept.footwear}` : "";
+  const conditionText = concept.clothingCondition ? ` (${concept.clothingCondition} wear)` : "";
+  const stanceText = concept.microKinesics
+    ? sanitizePromptSnippet(concept.microKinesics).replace(/\.+$/, "")
+    : "Grounded resting stance with relaxed shoulders and natural center of gravity";
+
+  const prompt = `Outfit and pose reference sheet for ${charName} (${charTag})
+
+SUBJECT:
+- Model: ${concept.name}, ${concept.ageGender || "adult"}${concept.bodyType ? ` (${concept.bodyType})` : ""}.
+
+OUTFIT & WARDROBE SPECIFICATION:
+- Garments: ${cleanWardrobe}${footwearText}${conditionText}.
+- Color & Palette: ${concept.clothingPalette || "Authentic film palette"}.
+- Fabric & Texture: Authentic lived-in textile drape, natural seam creases, zero artificial plastic sheen.
+
+POSE & PHYSICAL STANCE:
+- Stance & Posture: ${stanceText}.
+- Motion State: Static, grounded, physically plausible weight distribution (T=0).
+
+COMPOSITION & LIGHTING:
+Full-body portrait and 3/4 angle stance, neutral studio environment, soft key lighting, 35mm lens, f/2.8, cinematic photographic fidelity.`;
+
+  return applyPromptProfile(prompt, "outfit-pose", settings.platformSyntax, settings.compactMode);
 }
 
 /**

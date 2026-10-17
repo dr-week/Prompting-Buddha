@@ -49,14 +49,14 @@ type Stage = "core" | "appearance" | "styling" | "review";
 const STAGE_LABELS: Record<Stage, string> = {
   core: "Core",
   appearance: "Appearance",
-  styling: "Styling",
+  styling: "Grooming",
   review: "Review",
 };
 
 const STAGE_LOCK_KEYS: Record<Stage, CharacterLockKey[]> = {
   core: ["identity"],
   appearance: ["body", "face", "hair"],
-  styling: ["grooming", "wardrobe"],
+  styling: ["grooming", "skin"],
   review: [],
 };
 
@@ -481,7 +481,7 @@ export function CharacterStep({
                   </div>
                 )}
                 <button type="button" className="primary-button" onClick={onNext}>
-                  Continue to Mind Map
+                  Continue to Outfit & Pose
                 </button>
               </div>
             )}

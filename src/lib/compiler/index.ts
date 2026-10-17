@@ -27,6 +27,7 @@ export { DEFAULT_COMPILER_SETTINGS } from "./settings";
 // Character
 export {
   compileCharacterSheetPrompt,
+  compileOutfitPosePrompt,
   parseRoughCharacterInput,
   generateRealisticCharacterName,
   generateProceduralCharacter,

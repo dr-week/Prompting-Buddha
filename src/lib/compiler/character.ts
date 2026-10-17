@@ -1,5 +1,5 @@
 // Character compilation extracted from filmmaker-compiler.ts
-export { compileCharacterSheetPrompt, parseRoughCharacterInput, generateRealisticCharacterName, generateProceduralCharacter } from "../filmmaker-compiler";
+export { compileCharacterSheetPrompt, compileOutfitPosePrompt, parseRoughCharacterInput, generateRealisticCharacterName, generateProceduralCharacter } from "../filmmaker-compiler";
 export type { CharacterConcept } from "../filmmaker-compiler";
 
 // Character data constants

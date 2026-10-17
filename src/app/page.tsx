@@ -14,11 +14,12 @@ import { StepNavigation } from "@/components/studio/step-navigation";
 import { WorkspaceSidebar } from "@/components/studio/workspace-sidebar";
 import { BrandMark } from "@/components/studio/brand-mark";
 import { SettingsDialog } from "@/components/studio/settings-dialog";
-import { compileCharacterSheetPrompt } from "@/lib/compiler/character";
+import { compileCharacterSheetPrompt, compileOutfitPosePrompt } from "@/lib/compiler/character";
 import { compileStoryboardPrompt } from "@/lib/compiler/storyboard";
 import { compileVideoPrompts } from "@/lib/compiler/video";
 import { DEFAULT_COMPILER_SETTINGS } from "@/lib/filmmaker-compiler";
 import { applyScenePacket, buildScenePacket } from "@/features/story-map/scene-packet";
+import { OutfitPoseStep } from "@/features/character/outfit-pose-step";
 
 export default function Home() {
   const studio = useWorkspaceStudio();
@@ -37,6 +38,10 @@ export default function Home() {
     if (document.activeStep === "character") {
       const character = project.cast.find((item) => item.id === activeCharacterId) || project.cast[0];
       return { title: `${character.name} · character prompt`, prompt: compileCharacterSheetPrompt(character, { ...DEFAULT_COMPILER_SETTINGS, nsfwMode: document.settings.matureContent, negativeGuardrails: document.settings.negativeGuardrails, compactMode: document.settings.compactPrompts, platformSyntax: document.settings.targetAI }) };
+    }
+    if (document.activeStep === "outfit-pose") {
+      const character = project.cast.find((item) => item.id === activeCharacterId) || project.cast[0];
+      return { title: `${character.name} · outfit & pose prompt`, prompt: compileOutfitPosePrompt(character, { ...DEFAULT_COMPILER_SETTINGS, nsfwMode: document.settings.matureContent, negativeGuardrails: document.settings.negativeGuardrails, compactMode: document.settings.compactPrompts, platformSyntax: document.settings.targetAI }) };
     }
     if (document.activeStep === "video") {
       const oneShotProject = { ...project, panels: [project.panels[selectedShot]] };
@@ -73,7 +78,8 @@ export default function Home() {
       <section className="studio-shell">
         <div className={`work-area ${showOutput ? "with-output" : ""}`}>
           <div className="editor-column">
-            {document.activeStep === "character" ? <CharacterStep project={project} matureContent={document.settings.matureContent} activeCharacterId={activeCharacterId} onActiveCharacterChange={setActiveCharacterId} onChange={updateProject} onCompile={() => compile()} isOutputOpen={showOutput} onNext={() => changeStep("storymap")} /> : null}
+            {document.activeStep === "character" ? <CharacterStep project={project} matureContent={document.settings.matureContent} activeCharacterId={activeCharacterId} onActiveCharacterChange={setActiveCharacterId} onChange={updateProject} onCompile={() => compile()} isOutputOpen={showOutput} onNext={() => changeStep("outfit-pose")} /> : null}
+            {document.activeStep === "outfit-pose" ? <OutfitPoseStep project={project} activeCharacterId={activeCharacterId} onActiveCharacterChange={setActiveCharacterId} onChange={updateProject} onCompile={() => compile()} onNext={() => changeStep("storymap")} /> : null}
             {document.activeStep === "storymap" ? <StoryMapStep key={`${document.workspaceId}:${document.activeStoryboardId}`} scopeId={`${document.workspaceId}:${document.activeStoryboardId}`} nodes={document.storyMap.nodes} edges={document.storyMap.edges} propLibrary={document.propLibrary} characters={project.cast} storyboardId={document.activeStoryboardId} onSaveProp={studio.upsertProp} onChange={(storyMap) => studio.updateStoryMap(storyMap)} onAutoBuild={(tags = []) => studio.updateStoryMap(tags.length ? createStoryMapFromTags(project, tags) : createStoryMapFromProject(project))} onNext={applyStoryMap} /> : null}
             {document.activeStep === "storyboard" ? <StoryboardStep project={project} onChange={updateProject} onCompile={() => compile()} onNext={() => changeStep("video")} /> : null}
             {document.activeStep === "video" ? <VideoStep project={project} selectedShot={selectedShot} onSelectShot={setSelectedShot} onChange={updateProject} onCompile={() => compile()} /> : null}

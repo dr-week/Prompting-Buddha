@@ -21,25 +21,30 @@ describe("StepNavigation UX & Workflow Unlocked Flow", () => {
     });
 
     const buttons = React.Children.toArray(rendered.props.children);
-    expect(buttons.length).toBe(5);
+    expect(buttons.length).toBe(6);
+
+    // Click outfit-pose
+    const outfitPoseButton = buttons[1] as React.ReactElement<{ onClick: () => void }>;
+    outfitPoseButton.props.onClick();
+    expect(handleChange).toHaveBeenCalledWith("outfit-pose");
 
     // Click mindmap
-    const mindmapButton = buttons[1] as React.ReactElement<{ onClick: () => void }>;
+    const mindmapButton = buttons[2] as React.ReactElement<{ onClick: () => void }>;
     mindmapButton.props.onClick();
     expect(handleChange).toHaveBeenCalledWith("storymap");
 
     // Click storyboard (now freely accessible)
-    const storyboardButton = buttons[2] as React.ReactElement<{ onClick: () => void }>;
+    const storyboardButton = buttons[3] as React.ReactElement<{ onClick: () => void }>;
     storyboardButton.props.onClick();
     expect(handleChange).toHaveBeenCalledWith("storyboard");
 
     // Click video
-    const videoButton = buttons[3] as React.ReactElement<{ onClick: () => void }>;
+    const videoButton = buttons[4] as React.ReactElement<{ onClick: () => void }>;
     videoButton.props.onClick();
     expect(handleChange).toHaveBeenCalledWith("video");
 
     // Click auditor
-    const auditorButton = buttons[4] as React.ReactElement<{ onClick: () => void }>;
+    const auditorButton = buttons[5] as React.ReactElement<{ onClick: () => void }>;
     auditorButton.props.onClick();
     expect(handleChange).toHaveBeenCalledWith("auditor");
   });

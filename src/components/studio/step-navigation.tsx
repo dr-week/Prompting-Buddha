@@ -1,8 +1,9 @@
-import { Check, Film, Network, ScanFace, ShieldCheck, Video } from "lucide-react";
+import { Check, Film, Network, ScanFace, ShieldCheck, Shirt, Video } from "lucide-react";
 import type { WorkflowStep } from "@/features/workspaces/types";
 
 const steps: Array<{ id: WorkflowStep; label: string; icon: typeof Film }> = [
   { id: "character", label: "Character", icon: ScanFace },
+  { id: "outfit-pose", label: "Outfit & Pose", icon: Shirt },
   { id: "storymap", label: "Mindmap", icon: Network },
   { id: "storyboard", label: "Storyboard", icon: Film },
   { id: "video", label: "Video", icon: Video },
